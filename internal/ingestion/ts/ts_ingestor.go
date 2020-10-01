@@ -1,0 +1,64 @@
+package ts
+
+import (
+	"fmt"
+
+	"github.com/haftrine/fluxquest/internal/connections"
+	"github.com/haftrine/fluxquest/internal/idrf"
+	"github.com/haftrine/fluxquest/internal/ingestion/config"
+	"github.com/haftrine/fluxquest/internal/schemamanagement"
+)
+
+// TSIngestor implements a TimescaleDB ingestor
+type TSIngestor struct {
+	Config           *config.IngestorConfig
+	DbConn           connections.PgxWrap
+	IngestionRoutine Routine
+	SchemaManager    schemamanagement.SchemaManager
+	cachedBundle     *idrf.Bundle
+}
+
+// ID returns a string identifying the ingestor instance in logs
+func (i *TSIngestor) ID() string {
+	return i.Config.IngestorID
+}
+
+// Prepare creates or validates the output tables in Timescale
+func (i *TSIngestor) Prepare(bundle *idrf.Bundle) error {
+	i.cachedBundle = bundle
+	return i.SchemaManager.PrepareDataSet(bundle.DataDef, i.Config.SchemaStrategy)
+}
+
+// Start consumes a data channel of idrf.Row(s) and inserts them into a TimescaleDB hypertable
+func (i *TSIngestor) Start(errChan chan error) error {
+	if i.cachedBundle == nil {
+		return fmt.Errorf("%s: Start called without calling Prepare first", i.Config.IngestorID)
+	}
+
+	dataSet := i.cachedBundle.DataDef
+	colNames := extractColumnNames(dataSet.Columns)
+
+	ingestArgs := &ingestDataArgs{
+		ingestorID:              i.Config.IngestorID,
+		errChan:                 errChan,
+		dataChannel:             i.cachedBundle.DataChan,
+		rollbackOnExternalError: i.Config.RollbackOnExternalError,
+		batchSize:               i.Config.BatchSize,
+		dbConn:                  i.DbConn,
+		colNames:                colNames,
+		tableName:               dataSet.DataSetName,
+		schemaName:              i.Config.Schema,
+		commitStrategy:          i.Config.CommitStrategy,
+	}
+
+	return i.IngestionRoutine.ingest(ingestArgs)
+}
+
+func extractColumnNames(columns []*idrf.Column) []string {
+	columnNames := make([]string, len(columns))
+	for i, column := range columns {
+		columnNames[i] = column.Name
+	}
+
+	return columnNames
+}

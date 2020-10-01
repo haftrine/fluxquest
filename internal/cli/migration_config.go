@@ -1,0 +1,30 @@
+package cli
+
+import (
+	ingestionConf "github.com/haftrine/fluxquest/internal/ingestion/config"
+	"github.com/haftrine/fluxquest/internal/schemamanagement/schemaconfig"
+)
+
+// MigrationConfig contains the configurable parameters for migrating an InfluxDB to TimescaleDB
+type MigrationConfig struct {
+	RetentionPolicy                      string
+	OutputSchema                         string
+	OutputSchemaStrategy                 schemaconfig.SchemaStrategy
+	From                                 string
+	To                                   string
+	Limit                                uint64
+	ChunkSize                            uint16
+	BatchSize                            uint16
+	Quiet                                bool
+	DataBuffer                           uint16
+	MaxParallel                          uint8
+	RollbackAllMeasureExtractionsOnError bool
+	CommitStrategy                       ingestionConf.CommitStrategy
+	SchemaOnly                           bool
+	TagsAsJSON                           bool
+	TagsCol                              string
+	FieldsAsJSON                         bool
+	FieldsCol                            string
+	OnConflictConvertIntToFloat          bool
+	ChunkTimeInterval                    string
+}
